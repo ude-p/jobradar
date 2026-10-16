@@ -29,6 +29,7 @@ type Verdict struct {
 	Relocation   string
 	Local        string
 	Fit          string
+	Confidence   map[string]float64
 	Outcome      Outcome
 	Details      map[string]any
 }
@@ -49,8 +50,10 @@ type evaluateResponse struct {
 }
 
 type choiceAnswer struct {
-	Type   string `json:"type"`
-	Choice string `json:"choice"`
+	Type          string             `json:"type"`
+	Choice        string             `json:"choice"`
+	Confidence    float64            `json:"confidence"`
+	Probabilities map[string]float64 `json:"probabilities"`
 }
 
 type Judge struct {
@@ -109,29 +112,22 @@ func (j *Judge) Evaluate(ctx context.Context, criteria shared.Criteria, job shar
 }
 
 func verdict(result evaluateResponse) Verdict {
-	verdict := Verdict{Details: map[string]any{}}
+	verdict := Verdict{Details: map[string]any{}, Confidence: map[string]float64{}}
 
-	if raw, ok := result.Answers["remote_global"]; ok {
+	for name, raw := range result.Answers {
 		var answer choiceAnswer
-		if err := json.Unmarshal(raw, &answer); err == nil {
+		if err := json.Unmarshal(raw, &answer); err != nil {
+			continue
+		}
+		verdict.Confidence[name] = answer.Confidence
+		switch name {
+		case "remote_global":
 			verdict.RemoteGlobal = answer.Choice
-		}
-	}
-	if raw, ok := result.Answers["relocation_supported"]; ok {
-		var answer choiceAnswer
-		if err := json.Unmarshal(raw, &answer); err == nil {
+		case "relocation_supported":
 			verdict.Relocation = answer.Choice
-		}
-	}
-	if raw, ok := result.Answers["local_role"]; ok {
-		var answer choiceAnswer
-		if err := json.Unmarshal(raw, &answer); err == nil {
+		case "local_role":
 			verdict.Local = answer.Choice
-		}
-	}
-	if raw, ok := result.Answers["stack_fit"]; ok {
-		var answer choiceAnswer
-		if err := json.Unmarshal(raw, &answer); err == nil {
+		case "stack_fit":
 			verdict.Fit = answer.Choice
 		}
 	}
@@ -141,23 +137,41 @@ func verdict(result evaluateResponse) Verdict {
 	verdict.Details["relocation_supported"] = verdict.Relocation
 	verdict.Details["local_role"] = verdict.Local
 	verdict.Details["stack_fit"] = verdict.Fit
+	verdict.Details["confidence"] = verdict.Confidence
 	verdict.Details["usage"] = result.Usage
 
 	return verdict
 }
 
-// outcome requires an affirmative answer rather than the absence of a negative:
-// a judge that cannot confirm eligibility has not established it. Exactly one
-// eligibility question is asked per queue, so whichever is open is the one that
-// can approve.
+// minConfidence is the certainty an approving answer has to reach. The model
+// reports this itself, so it ranks decisiveness rather than guaranteeing
+// correctness.
+const minConfidence = 0.7
+
+// outcome requires an affirmative answer rather than the absence of a negative,
+// and a decisive one. Exactly one eligibility question is asked per queue, so
+// whichever is open is the one that can approve.
 func outcome(verdict Verdict) Outcome {
-	if verdict.Fit == "no" {
+	if verdict.Fit == "no" || verdict.Confidence["stack_fit"] < minConfidence {
 		return OutcomeRejected
 	}
-	if verdict.RemoteGlobal != "yes" && verdict.Relocation != "yes" && verdict.Local != "yes" {
-		return OutcomeRejected
+	for _, eligibility := range []struct {
+		name   string
+		choice string
+	}{
+		{"remote_global", verdict.RemoteGlobal},
+		{"relocation_supported", verdict.Relocation},
+		{"local_role", verdict.Local},
+	} {
+		if eligibility.choice != "yes" {
+			continue
+		}
+		if verdict.Confidence[eligibility.name] < minConfidence {
+			return OutcomeRejected
+		}
+		return OutcomeApproved
 	}
-	return OutcomeApproved
+	return OutcomeRejected
 }
 
 func state(candidateContext string, job shared.Job) string {

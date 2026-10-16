@@ -116,6 +116,9 @@ func (scraper *Freehire) page(ctx context.Context, intent shared.Intent, limit i
 	for _, category := range intent.Categories {
 		query.Add("category", category)
 	}
+	for _, seniority := range intent.Seniority {
+		query.Add("seniority", seniority)
+	}
 	for _, region := range intent.Regions {
 		query.Add("regions", region)
 	}

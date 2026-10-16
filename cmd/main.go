@@ -99,8 +99,8 @@ func main() {
 		pltfrmRemote(cfg.platformChatID),
 		pltfrmReloc(cfg.platformChatID),
 		pltfrmLocal(cfg.platformChatID),
-		careRemote(cfg.careChatID),
-		careLocal(cfg.careChatID),
+		carePharma(cfg.careChatID),
+		careGraduateLocal(cfg.careChatID),
 	}
 
 	application.tick(ctx, queues)
@@ -123,7 +123,7 @@ func pltfrmReloc(chatID string) shared.Queue {
 	return shared.NewQueue().
 		Name("platform-relocation").
 		Skills("go", "kubernetes").
-		Regions("eu").
+		Countries("ie", "gb", "nl", "de", "ch", "dk", "fi", "se", "ae", "sg", "ca", "au", "nz").
 		Location("European Union").
 		WorkMode(shared.Relocation).
 		PostedWithinDays(7).
@@ -143,10 +143,10 @@ func pltfrmLocal(chatID string) shared.Queue {
 		ChatIDs(chatID)
 }
 
-func careRemote(chatID string) shared.Queue {
+func carePharma(chatID string) shared.Queue {
 	return shared.NewQueue().
-		Name("care").
-		Terms("customer success").
+		Name("care-pharma").
+		Terms("medical").
 		Regions("global").
 		WorkMode(shared.Remote).
 		PostedWithinDays(7).
@@ -154,10 +154,10 @@ func careRemote(chatID string) shared.Queue {
 		ChatIDs(chatID)
 }
 
-func careLocal(chatID string) shared.Queue {
+func careGraduateLocal(chatID string) shared.Queue {
 	return shared.NewQueue().
-		Name("care-local").
-		Terms("customer success").
+		Name("care-graduate-local").
+		Terms("graduate trainee").
 		Countries("ng").
 		Location("Nigeria").
 		PostedWithinDays(7).
@@ -231,7 +231,7 @@ func online(ctx context.Context) bool {
 
 var (
 	pltfrmContext = "Platform and infrastructure engineer (4+ years, Lagos, Nigeria). Language & data: Go, PostgreSQL, TimescaleDB, Redis. Cloud & infrastructure: AWS (EC2, EBS, VPC, S3, CloudFront, Route 53, IAM, SSM, CloudWatch), OpenTofu. Kubernetes & platform: Kubernetes, k3s, controller-runtime, client-go, CRDs, Operators, Helm, Cilium, Longhorn, CloudNativePG. Observability & networking: OpenTelemetry, Grafana, pprof, Pyroscope, gRPC, WebSockets, Protocol Buffers, NATS. CI/CD & automation: GitHub Actions, Ansible, Docker, ko, GHCR. Owns backend services, compute, storage, networking, deployments, and production operations."
-	careContext   = "Candidate seeking remote roles in pharmacy operations, clinical research, customer success, operations, or project coordination."
+	careContext   = "Candidate seeking remote roles in pharmacy operations, clinical research, operations, or project coordination."
 
 	pltfrmFit = shared.Choice("stack_fit",
 		"Is the core of this role in the candidate's field: backend, infrastructure, platform, or reliability engineering built on Go and Kubernetes, with cloud (AWS), infrastructure-as-code, Linux, networking, distributed systems, or observability?",
@@ -241,9 +241,9 @@ var (
 		})
 
 	careFit = shared.Choice("stack_fit",
-		"Is this role in one of the candidate's target areas: pharmacy or clinical operations, customer success, operations, project coordination, or quality assurance?",
+		"Is this role in one of the candidate's target areas: pharmacy, clinical operations, general operations, project coordination, quality assurance, or a graduate trainee programme?",
 		map[string]string{
-			"yes": "Role is clearly in pharmacy/clinical operations, customer success, operations, project coordination, or QA.",
+			"yes": "Role is clearly in pharmacy or clinical operations, general operations, project coordination, QA, or an entry-level graduate trainee programme.",
 			"no":  "Everything else. The role is in a different field with no meaningful overlap, or the description is too thin or missing to tell.",
 		})
 

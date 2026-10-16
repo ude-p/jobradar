@@ -13,20 +13,35 @@ import (
 )
 
 func TestOutcome(t *testing.T) {
+	// every answer decisive
+	confident := map[string]float64{
+		"remote_global":        0.95,
+		"relocation_supported": 0.95,
+		"local_role":           0.95,
+		"stack_fit":            0.95,
+	}
+
 	cases := []struct {
 		name string
 		v    Verdict
 		want Outcome
 	}{
-		{"remote yes", Verdict{RemoteGlobal: "yes", Fit: "yes"}, OutcomeApproved},
-		{"relocation yes", Verdict{Relocation: "yes", Fit: "yes"}, OutcomeApproved},
-		{"local yes", Verdict{Local: "yes", Fit: "yes"}, OutcomeApproved},
-		{"nothing open", Verdict{RemoteGlobal: "no", Relocation: "no", Local: "no", Fit: "yes"}, OutcomeRejected},
-		{"wrong stack rejects", Verdict{RemoteGlobal: "yes", Relocation: "yes", Local: "yes", Fit: "no"}, OutcomeRejected},
-		// Only an affirmative yes approves, so an answer the prompt cannot
-		// produce still rejects rather than falling through.
-		{"unanswered rejects", Verdict{Fit: "yes"}, OutcomeRejected},
-		{"unrecognised answer rejects", Verdict{RemoteGlobal: "maybe", Fit: "yes"}, OutcomeRejected},
+		{"remote yes", Verdict{RemoteGlobal: "yes", Fit: "yes", Confidence: confident}, OutcomeApproved},
+		{"relocation yes", Verdict{Relocation: "yes", Fit: "yes", Confidence: confident}, OutcomeApproved},
+		{"local yes", Verdict{Local: "yes", Fit: "yes", Confidence: confident}, OutcomeApproved},
+		{"exactly at the floor approves", Verdict{RemoteGlobal: "yes", Fit: "yes",
+			Confidence: map[string]float64{"remote_global": 0.7, "stack_fit": 0.7}}, OutcomeApproved},
+		{"just under the floor rejects", Verdict{RemoteGlobal: "yes", Fit: "yes",
+			Confidence: map[string]float64{"remote_global": 0.69, "stack_fit": 0.95}}, OutcomeRejected},
+		{"shaky fit rejects", Verdict{RemoteGlobal: "yes", Fit: "yes",
+			Confidence: map[string]float64{"remote_global": 0.95, "stack_fit": 0.5}}, OutcomeRejected},
+		{"nothing open", Verdict{RemoteGlobal: "no", Relocation: "no", Local: "no", Fit: "yes", Confidence: confident}, OutcomeRejected},
+		{"wrong stack rejects", Verdict{RemoteGlobal: "yes", Fit: "no", Confidence: confident}, OutcomeRejected},
+		// Only an affirmative, confident answer approves, so an answer the
+		// prompt cannot produce still rejects rather than falling through.
+		{"no confidence rejects", Verdict{RemoteGlobal: "yes", Fit: "yes"}, OutcomeRejected},
+		{"unanswered rejects", Verdict{Fit: "yes", Confidence: confident}, OutcomeRejected},
+		{"unrecognised answer rejects", Verdict{RemoteGlobal: "maybe", Fit: "yes", Confidence: confident}, OutcomeRejected},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -46,9 +61,9 @@ func TestEvaluate(t *testing.T) {
 		_, _ = w.Write([]byte(`{
 			"model": "jev-1.13.0",
 			"answers": {
-				"remote_global": { "type": "choice", "choice": "yes" },
-				"relocation_supported": { "type": "choice", "choice": "no" },
-				"stack_fit": { "type": "choice", "choice": "yes" }
+				"remote_global": { "type": "choice", "choice": "yes", "confidence": 0.93, "probabilities": { "yes": 0.95, "no": 0.05 } },
+				"relocation_supported": { "type": "choice", "choice": "no", "confidence": 0.81 },
+				"stack_fit": { "type": "choice", "choice": "yes", "confidence": 1.0 }
 			},
 			"usage": { "input_tokens": 500, "output_tokens": 30 }
 		}`))
@@ -88,6 +103,9 @@ func TestEvaluate(t *testing.T) {
 	}
 	if verdict.Fit != "yes" {
 		t.Fatalf("fit = %q", verdict.Fit)
+	}
+	if verdict.Confidence["stack_fit"] != 1.0 || verdict.Confidence["remote_global"] != 0.93 {
+		t.Fatalf("confidence = %v, want the per-question values the api returned", verdict.Confidence)
 	}
 }
 
