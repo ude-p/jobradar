@@ -95,11 +95,3 @@ Create an `.env` with these variables. All of them are required at startup.
 | `PLATFORM_CHAT_ID` | chat for the platform queues |
 | `CARE_CHAT_ID` | chat for the care queues |
 
-Then run it.
-
-```bash
-just build
-just run-dev   # sources ~/Library/Application Support/jobradar/.env
-```
-
-For a non macOS setup, export the variables yourself and run `go run ./cmd`.
